@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SparklePoints | Daily Cleaning Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .task-done { text-decoration: line-through; opacity: 0.6; }
+        .limit-reached { border: 2px solid #ef4444; background-color: #fef2f2; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div class="max-w-md mx-auto py-10 px-4">
+        <header class="bg-white rounded-3xl shadow-sm p-6 mb-6 text-center border border-slate-100">
+            <h1 class="text-2xl font-bold text-indigo-600 mb-2">✨ SparklePoints</h1>
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="bg-indigo-50 p-3 rounded-2xl">
+                    <p class="text-xs uppercase tracking-wider font-semibold text-indigo-400">Daily Points</p>
+                    <p id="daily-count" class="text-3xl font-black text-indigo-700">0 / 10</p>
+                </div>
+                <div class="bg-emerald-50 p-3 rounded-2xl">
+                    <p class="text-xs uppercase tracking-wider font-semibold text-emerald-400">Lifetime</p>
+                    <p id="total-count" class="text-3xl font-black text-emerald-700">0</p>
+                </div>
+            </div>
+            <p id="limit-msg" class="text-red-500 text-sm mt-3 hidden font-medium">Daily limit of 10 reached! Great job.</p>
+        </header>
+
+        <div class="flex gap-2 mb-6">
+            <input type="text" id="task-input" placeholder="Add a cleaning task..." 
+                class="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm">
+            <button onclick="addTask()" 
+                class="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg active:scale-95">
+                Add
+            </button>
+        </div>
+
+        <ul id="task-list" class="space-y-3">
+            </ul>
+        
+        <button onclick="resetDaily()" class="w-full mt-8 text-slate-400 text-sm hover:text-slate-600 underline">
+            Manual Reset
+        </button>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('cleaning_tasks')) || [];
+        let totalPoints = parseInt(localStorage.getItem('total_points')) || 0;
+        let dailyPoints = parseInt(localStorage.getItem('daily_points')) || 0;
+        let lastResetDate = localStorage.getItem('last_reset_date');
+
+        // Check for Midnight Reset
+        const checkDateReset = () => {
+            const today = new Date().toDateString();
+            if (lastResetDate !== today) {
+                dailyPoints = 0;
+                localStorage.setItem('daily_points', 0);
+                localStorage.setItem('last_reset_date', today);
+                
+                // Reset completion status for all tasks at start of day
+                tasks = tasks.map(t => ({ ...t, completed: false }));
+                saveTasks();
+            }
+        };
+
+        const saveTasks = () => {
+            localStorage.setItem('cleaning_tasks', JSON.stringify(tasks));
+            render();
+        };
+
+        const addTask = () => {
+            const input = document.getElementById('task-input');
+            if (!input.value.trim()) return;
+            
+            tasks.push({ id: Date.now(), text: input.value, completed: false });
+            input.value = '';
+            saveTasks();
+        };
+
+        const deleteTask = (id) => {
+            tasks = tasks.filter(t => t.id !== id);
+            saveTasks();
+        };
+
+        const toggleTask = (id) => {
+            const task = tasks.find(t => t.id === id);
+            
+            if (!task.completed) {
+                if (dailyPoints >= 10) {
+                    showLimitWarning();
+                    return;
+                }
+                task.completed = true;
+                dailyPoints++;
+                totalPoints++;
+            } else {
+                task.completed = false;
+                dailyPoints--;
+                totalPoints--;
+            }
+
+            localStorage.setItem('daily_points', dailyPoints);
+            localStorage.setItem('total_points', totalPoints);
+            saveTasks();
+        };
+
+        const showLimitWarning = () => {
+            const msg = document.getElementById('limit-msg');
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 3000);
+        };
+
+        const resetDaily = () => {
+            dailyPoints = 0;
+            localStorage.setItem('daily_points', 0);
+            render();
+        };
+
+        const render = () => {
+            const list = document.getElementById('task-list');
+            const dailyEl = document.getElementById('daily-count');
+            const totalEl = document.getElementById('total-count');
+            
+            dailyEl.innerText = `${dailyPoints} / 10`;
+            totalEl.innerText = totalPoints;
+
+            list.innerHTML = '';
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = `flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100 transition ${task.completed ? 'task-done' : ''}`;
+                li.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" ${task.completed ? 'checked' : ''} 
+                            onchange="toggleTask(${task.id})"
+                            class="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500">
+                        <span class="font-medium text-slate-700">${task.text}</span>
+                    </div>
+                    <button onclick="deleteTask(${task.id})" class="text-slate-300 hover:text-red-400 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                `;
+                list.appendChild(li);
+            });
+        };
+
+        // Initial Logic
+        checkDateReset();
+        render();
+    </script>
+</body>
+</html>
